@@ -12,7 +12,9 @@ TsunamiQwiic tsunami;
 // SoftwareSerial SoftSerial(6, 7);
 // DY::Player player(&SoftSerial);
 
+bool exclusiveplaying = true;
 bool playing = false;
+int trackplaying = 1;
 
 #define MINDIST 2
 #define MAXDIST 50
@@ -20,10 +22,14 @@ bool playing = false;
 #define DELTAINC 3
 #define NUMBEROFSONGS 8
 #define NUMBERSAMPLES 0 //2 // nombre de mesures en dessous du threshold nécessaires (-1) (pour éviter les fausses alertes dues à des valeurs fantômes)
-#define THRESHOLD 30
+//#define THRESHOLD 30
+#define ACTIVATIONTHRESHOLD 10
+
 
 
 int samples =  0;
+
+int THRESHOLD = 30;
 
 /* les pins 30,32,...,48 sont assignées au pins TRIG (et ECHO) des capteurs*/
 
@@ -48,59 +54,6 @@ int compteur = 0;
 
 int song = 0;
 
-void setup() {
-  /*les pins 31,33,...,49 servent de VCC*/
-
-
-for(int i=31; i<=50; i+=2) {
-    pinMode(i, OUTPUT);
-  digitalWrite(i,HIGH);
- }
-
-
-  for(int i=0;i<11;i++)
-  {
-    samplestab[i]=0;
-  }
-  
-  pinMode(LED_BUILTIN,OUTPUT);
-  
-
-
-    //player.begin();
-  // Also initiate the hardware serial port so we can use it for debug printing
-  // to the console..
-   Serial.begin(9600);
-
-  // player.setVolume(30); 
-  //  player.setCycleMode(DY::PlayMode::Sequence); // Play all and stop.
-  //player.setCycleMode(DY::PlayMode::Repeat); // Play all and repeat.
-  //player.setCycleMode(DY::PlayMode::Random); // Play all randomly and repeat.
-    //player.next();
- //player.previous (); 
- //player.volumeIncrease();
-  //player.volumeDecrease();
- 
-  // player.stop();
-
-    Serial.println("Test 12 août");
-  
-   Wire.begin();
-
-  // Check to see if Tsunami Qwiic is present on the bus
-  // Note, here we are calling begin() with no arguments = defaults (address:0x13, I2C-port:Wire)
-  if (tsunami.begin() == false)
-  {
-    Serial.println("Tsunami Qwiic failed to respond. Please check wiring and possibly the I2C address. Freezing...");
-    while (1);      
-  }; 
-
-  
-
-  Serial.println("All done!");
-  delay(3000);
-  
-}
 void test1()
 {
 // Print the number of the sound that is playing.
@@ -158,11 +111,13 @@ bool takeMesure(int sensornumber, int sensorvalue)
       // else
       // {
       //     tsunami.trackPlaySolo(sensornumber, 0); // track = 1 (aka "1.WAV"), output = 0 (aka "1L") 
-      // }
+      // }      
 
       tsunami.trackPlaySolo(sensornumber, 0); 
+      playing = true;
+      trackplaying = sensornumber;
       
-      for(int i=0;i<=11;i++)samplestab[sensornumber] = 0;
+      for(int i=0;i<=11;i++)samplestab[i] = 0;
       delay(1000);
       
     }
@@ -180,6 +135,69 @@ bool takeMesure(int sensornumber, int sensorvalue)
 
 
 }
+
+bool checkInitSwitch(int sensornumber, int sensorvalue)
+{
+  
+  if(sensorvalue<3)return false;
+  if(sensorvalue<ACTIVATIONTHRESHOLD)
+  {
+    if(samplestab[sensornumber]>=NUMBERSAMPLES) // un capteur est "activé" à l'allumage => configuration
+    {
+
+      switch (sensornumber)
+      {
+      case 1:
+        exclusiveplaying = false;
+        break;
+      case 2:
+      THRESHOLD = 10;
+        break;
+      case 3:
+      THRESHOLD = 15;
+        break;
+      case 4:
+      THRESHOLD = 20;
+        break;
+      case 5:
+      THRESHOLD = 25;
+        break;
+      case 6:
+      THRESHOLD = 35;
+        break;
+      case 7:
+      THRESHOLD = 40;
+        break;
+      case 8:
+      THRESHOLD = 45;
+        break;
+      case 9:
+      THRESHOLD = 50;
+        break;
+      case 10:
+      THRESHOLD = 55;
+        break;
+      }
+
+      // for(int i=0;i<=11;i++)samplestab[i] = 0;
+      // delay(1000);
+      
+    }
+    else
+    {
+      samplestab[sensornumber]=samplestab[sensornumber]+1;      
+    }
+    return true;
+  }
+  else
+  {
+    samplestab[sensornumber]=0;    
+  }
+  return false;
+
+
+}
+
 void test2()
 {
 
@@ -205,7 +223,21 @@ void test2()
   
 }
 
-void test3()
+void checkInitSwitches()
+{
+  checkInitSwitch(1,ultrasonic1.read());
+  checkInitSwitch(2,ultrasonic2.read());
+  checkInitSwitch(3,ultrasonic3.read());
+  checkInitSwitch(4,ultrasonic4.read());
+  checkInitSwitch(5,ultrasonic5.read());
+  checkInitSwitch(6,ultrasonic6.read());
+  checkInitSwitch(7,ultrasonic7.read());
+  checkInitSwitch(8,ultrasonic8.read());
+  checkInitSwitch(9,ultrasonic9.read());
+  checkInitSwitch(10,ultrasonic10.read());
+}
+
+void playActiveUltrasonic()
 {
   if(takeMesure(1,ultrasonic1.read()))return;
   if(takeMesure(2,ultrasonic2.read()))return;
@@ -219,13 +251,91 @@ void test3()
   if(takeMesure(10,ultrasonic10.read()))return;
 }
 
-void loop() {
+
+void setup() {
+  /*les pins 31,33,...,49 servent de VCC*/
+
+
+for(int i=31; i<=50; i+=2) {
+    pinMode(i, OUTPUT);
+  digitalWrite(i,HIGH);
+ }
+
+
+  for(int i=0;i<11;i++)
+  {
+    samplestab[i]=0;
+  }
   
-  
-  
-  test3();
+  pinMode(LED_BUILTIN,OUTPUT);
   
 
+
+    //player.begin();
+  // Also initiate the hardware serial port so we can use it for debug printing
+  // to the console..
+   Serial.begin(9600);
+
+  // player.setVolume(30); 
+  //  player.setCycleMode(DY::PlayMode::Sequence); // Play all and stop.
+  //player.setCycleMode(DY::PlayMode::Repeat); // Play all and repeat.
+  //player.setCycleMode(DY::PlayMode::Random); // Play all randomly and repeat.
+    //player.next();
+ //player.previous (); 
+ //player.volumeIncrease();
+  //player.volumeDecrease();
+ 
+  // player.stop();
+
+    
+  
+   Wire.begin();
+
+  // Check to see if Tsunami Qwiic is present on the bus
+  // Note, here we are calling begin() with no arguments = defaults (address:0x13, I2C-port:Wire)
+  if (tsunami.begin() == false)
+  {
+    Serial.println("Tsunami Qwiic failed to respond. Please check wiring and possibly the I2C address. Freezing...");
+    while (1);      
+  }; 
+
+  
+
+  Serial.println("All done!");
+  unsigned long starttime = millis();
+  while((millis()-starttime)<3000)
+  {
+    checkInitSwitches();
+    delay(100);
+  }
+   for(int i=0;i<=11;i++)samplestab[i] = 0;
+
+  Serial.print("THRESHOLD = ");
+  Serial.println(THRESHOLD);
+  Serial.print("exclusiveplaying = ");
+  Serial.println(exclusiveplaying);
+  
+  tsunami.trackPlaySolo(100, 0);
+  
+  //delay(3000);
+  
+  
+}
+
+
+void loop()
+{
+  if (exclusiveplaying && playing)
+  {
+    if (!tsunami.isTrackPlaying(trackplaying))
+    {
+      playing = 0;
+    }
+  }
+  else
+  {
+    playActiveUltrasonic();
+  }
 }
 
 /******************************************************************************
